@@ -1,0 +1,280 @@
+/*
+   useful website... https://www.epochconverter.com/
+   this has conversions and can ask for epoch times of
+   daylight savings times and make a list for future.
+   for 8266 NODEMCU 1.0 ESP12E
+   relay should be on "D1" which is GPIO5
+   if ssid or password changes change them below.
+   TO UPDATE for March 2023 daylight savings press RST button
+
+   DIRECTIONS PRINTED AT DEVICE
+   Lunch Bell….  How to read the LED’s
+  If Red Light is on Blue is off… device is functioning and we have internet.
+  If Blue is on… we don’t have internet. (check with Troy)
+  If Blue light is flashing, internet faulted or incorrect time being obtained from NPT
+  This device should now update for 2023 daylight savings change automatically
+
+read read   *********THIS SKETCH CONNECTS TO NTP AND TURNS RELAY ON AT 6AM AND 7PM FOR 25 MINUTES*****************
+  
+*/
+#define RELAY_PIN 5
+#define REDLED_PIN 16
+#define BLUELED_PIN 2
+#define BUTTON_PIN 0
+#include <NTPClient.h>
+// change next line to use with another board/shield
+#include <WiFi.h>
+#include <HTTPClient.h>
+
+#include <WiFiUdp.h>
+#include "time.h"
+
+const char *ssid     = "Fios-JZOSU";
+const char *password = "gem7070ace208pin";
+String GOOGLE_SCRIPT_ID = "AKfycbyBapnfx0vNLT9OZFgJxZhe0_Z6_2XEpklfGt2HlL0IeLSFgYcb91JvyNrUc6_EfImk";
+
+
+
+long int epochTime = 0;
+long int startTime = 0;
+long int duration = 6000;
+String dayOfWeek[7] = {"Sun", "Mon", "Tues", "Wed", "Thur", "Fri", "Sat" };
+long int curTime = 0;
+int dayNum;
+
+//for read_google_sheet() funct
+long int startOnTime=0;
+String payload;
+
+int hour = 0;
+int minute = 0;
+int day = 0;
+int seconds = 0;
+int numericalMinOfDay = 0;
+int amStartMin =360;      //6am
+int amStopMin = 385;      //625am
+int pmStartMin = 1140;    //7pm
+int pmStopMin = 1165;     //725pm
+
+long int startTimeUpdate = 0;
+int desiredUpdateTime = 1000;
+
+WiFiUDP ntpUDP;
+WiFiClientSecure client;
+
+// You can specify the time server pool and the offset (in seconds, can be
+// changed later with setTimeOffset() ). Additionally you can specify the
+// update interval (in milliseconds, can be changed using setUpdateInterval() ).
+NTPClient timeClient(ntpUDP, "us.pool.ntp.org", 3600, 60000);
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(RELAY_PIN, OUTPUT);
+  pinMode(REDLED_PIN, OUTPUT);
+  pinMode(BLUELED_PIN, OUTPUT);
+  delay(100);
+
+  WiFi.begin(ssid, password);
+  while ( WiFi.status() != WL_CONNECTED ) {
+    delay ( 500 );
+    Serial.print ( "." );
+  }
+  delay(500);
+  if ( WiFi.status() == WL_CONNECTED ) {
+    delay ( 500 );
+    Serial.print ( ".WiFi is connected" );
+    digitalWrite(BLUELED_PIN, HIGH ); //LOW IS ON
+  }
+
+  delay(2500);
+
+  timeClient.begin();
+  epochTime = timeClient.getEpochTime(); //getEpochTime to determine daylight savings
+
+  timeClient.setTimeOffset(-18000);
+  //timeClient.setTimeOffset(-18000-3600);
+  Serial.println(timeClient.getEpochTime());
+
+  if (epochTime > 1678579200) { // 1678579200 is March 3 2023 daylight saving starts
+    timeClient.setTimeOffset(-18000); //add 3600 to advance for daylight savings
+    Serial.println("the current epoch time shows not fell back");
+    Serial.println(epochTime);
+  }
+  else {
+    timeClient.setTimeOffset(-18000 - 3600);
+    Serial.println("time is fallen back 3600 seconds or 1 hour");
+    Serial.print(epochTime);
+  }
+  digitalWrite(RELAY_PIN, HIGH);
+  Serial.print("pin high");
+  delay(1000);
+  digitalWrite(RELAY_PIN, LOW);
+  Serial.print("pin LOW");
+  delay(1000);
+  digitalWrite(RELAY_PIN, HIGH);
+  Serial.print("pin high");
+  delay(1000);
+  digitalWrite(RELAY_PIN, LOW);
+  Serial.print("pin LOW");
+  delay(1000);
+  startTimeUpdate = millis();
+}
+
+void ringIfDetermined() {
+  Serial.println("ringIfDet reached");
+  hour = timeClient.getHours();
+  day = timeClient.getDay();
+  Serial.print("the switch case day is................") + Serial.println(day);
+  minute = timeClient.getMinutes();
+  int date = timeClient.getEpochTime();
+  numericalMinOfDay = ((hour * 60) + minute);
+
+  Serial.println(timeClient.getEpochTime());
+  // check if
+  if (numericalMinOfDay < 720) {
+    Serial.println("Its currently AM");
+    if ((numericalMinOfDay >= amStartMin) && (numericalMinOfDay < amStopMin))
+    {
+      digitalWrite(RELAY_PIN, HIGH);
+      Serial.println("pin high");
+    }
+    else {
+      digitalWrite(RELAY_PIN, LOW);
+      Serial.println("pin LOW");
+    }
+  }
+  else{
+    Serial.println("Its currently PM");
+        if ((numericalMinOfDay >= pmStartMin) && (numericalMinOfDay < pmStopMin))
+    {
+      digitalWrite(RELAY_PIN, HIGH);
+      Serial.println("pin high");
+    }
+    else {
+      digitalWrite(RELAY_PIN, LOW);
+      Serial.println("pin LOW");
+    }
+  }
+startTimeUpdate = millis();
+Serial.println(numericalMinOfDay);
+
+}
+
+void read_google_sheet(void) {
+   //-----------------------------------------------------------------------------------
+   HTTPClient http;
+   startOnTime=millis();
+   String url="https://script.google.com/macros/s/"+GOOGLE_SCRIPT_ID+"/exec?read";
+  //Serial.print(url);
+  Serial.println("Reading Data From Google Sheet.....");
+  http.begin(url.c_str());
+  //-----------------------------------------------------------------------------------
+  //Removes the error "302 Moved Temporarily Error"
+  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+  //-----------------------------------------------------------------------------------
+  //Get the returning HTTP status code
+  int httpCode = http.GET();
+  Serial.print("HTTP Status Code: ");
+  Serial.println(httpCode);
+  //-----------------------------------------------------------------------------------
+  if(httpCode <= 0){Serial.println("Error on HTTP request"); http.end(); return;}
+  //-----------------------------------------------------------------------------------
+  //reading data comming from Google Sheet
+  //String payload = http.getString();
+  payload = http.getString();
+  Serial.println("Payload: "+payload);
+  int lengthOfPayload=payload.length();
+  Serial.println(lengthOfPayload);
+ 
+  char payloadArray[lengthOfPayload];
+  
+  int commaIndex1 = payload.indexOf(',');
+  int commaIndex2 = payload.indexOf(',', commaIndex1 + 1);
+  int commaIndex3 = payload.indexOf(',', commaIndex2 + 1);
+  int commaIndex4 = payload.indexOf(',', commaIndex3 + 1);
+  int commaIndex5 = payload.indexOf(',', commaIndex4 + 1);
+  int commaIndex6 = payload.indexOf(',', commaIndex5 + 1);
+
+  String val1 = payload.substring(0, commaIndex1);
+  String val2 = payload.substring(commaIndex1 + 1, commaIndex2);
+  String val3 = payload.substring(commaIndex2 + 1, commaIndex3);
+  String val4 = payload.substring(commaIndex3 + 1, commaIndex4);
+  String val5 = payload.substring(commaIndex4 + 1, commaIndex5);
+  String val6 = payload.substring(commaIndex5 + 1, commaIndex6);
+
+  Serial.print(val1);
+  Serial.print(val6);
+  
+  //-----------------------------------------------------------------------------------
+  if(httpCode == 200){
+Serial.println(payload);
+  }
+  payload="";
+  //-------------------------------------------------------------------------------------
+  http.end();
+}
+
+void loop() {
+  timeClient.update();
+  if ( WiFi.status() != WL_CONNECTED ) {
+    digitalWrite(REDLED_PIN, HIGH);
+    Serial.println("red light should be off indicating no internet");
+  }
+  else {
+    digitalWrite(REDLED_PIN, LOW);
+    //Serial.println("red light should be on indicating there is internet");
+  }
+  if (epochTime < 1670000000) {
+    Serial.print("error recieving correct time");
+    digitalWrite(BLUELED_PIN, LOW);
+    delay(150);
+    digitalWrite(BLUELED_PIN, HIGH);
+    delay(150);
+    digitalWrite(BLUELED_PIN, LOW);
+    delay(150);
+    digitalWrite(BLUELED_PIN, HIGH);
+    delay(150);
+    digitalWrite(BLUELED_PIN, LOW);
+    delay(150);
+    digitalWrite(BLUELED_PIN, LOW);
+    delay(150);
+    digitalWrite(BLUELED_PIN, HIGH);
+    delay(150);
+    digitalWrite(BLUELED_PIN, LOW);
+    delay(150);
+    digitalWrite(BLUELED_PIN, LOW);
+    delay(150);
+    digitalWrite(BLUELED_PIN, LOW);
+    delay(150);
+    digitalWrite(BLUELED_PIN, HIGH);
+    delay(150);
+    epochTime = timeClient.getEpochTime();
+    return;
+  }
+  if (epochTime > 1678579200) { // 1678579200 is March 3 2023 daylight saving starts
+    timeClient.setTimeOffset(-18000 + 3600); //add 3600 to advance for daylight savings
+    //Serial.println("the current epoch time shows not fell back");
+    //Serial.println(epochTime);
+  }
+  else {
+    timeClient.setTimeOffset(-18000);
+    //Serial.println("time is fallen back 3600 seconds or 1 hour");
+  }
+  //Serial.print(timeClient.getHours());
+  //Serial.print(":");
+  //Serial.println(timeClient.getMinutes());
+  //Serial.println(timeClient.getSeconds());
+  //Serial.println(timeClient.getDay());
+  dayNum = (timeClient.getDay());
+  //Serial.println("dayNum of " + dayOfWeek[dayNum] + "=" + dayNum);
+  numericalMinOfDay = ((hour * 60) + minute);
+  //Serial.println(numericalMinOfDay);
+long int curTime = millis();
+  if(curTime-startTimeUpdate > desiredUpdateTime){
+    Serial.println("wait time reached");
+    ringIfDetermined();
+  }
+  read_google_sheet();
+  return;
+
+}
