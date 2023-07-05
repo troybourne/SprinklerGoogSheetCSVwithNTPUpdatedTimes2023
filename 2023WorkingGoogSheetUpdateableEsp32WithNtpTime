@@ -2,6 +2,17 @@
    useful website... https://www.epochconverter.com/
    this has conversions and can ask for epoch times of
    daylight savings times and make a list for future.
+   for 8266 NODEMCU 1.0 ESP12E
+   relay should be on "D1" which is GPIO5
+   if ssid or password changes change them below.
+   TO UPDATE for March 2023 daylight savings press RST button
+
+   DIRECTIONS PRINTED AT DEVICE
+   Lunch Bell….  How to read the LED’s
+  If Red Light is on Blue is off… device is functioning and we have internet.
+  If Blue is on… we don’t have internet. (check with Troy)
+  If Blue light is flashing, internet faulted or incorrect time being obtained from NPT
+  This device should now update for 2023 daylight savings change automatically
 
   read read   *********THIS SKETCH CONNECTS TO NTP AND TURNS RELAY ON AT 6AM AND 7PM FOR 25 MINUTES*****************
 
@@ -24,7 +35,7 @@
 
 const char *ssid     = "Fios-JZOSU";
 const char *password = "gem7070ace208pin";
-String GOOGLE_SCRIPT_ID = "AKfycbyBapnfx0vNLT9OZFgJxZhe0_Z6_2XEpklfGt2HlL0IeLSFgYcb91JvyNrUc6_EfImk"; //Goog Sheet "Bournes Sprinkler Dashboard"
+String GOOGLE_SCRIPT_ID = "AKfycbyBapnfx0vNLT9OZFgJxZhe0_Z6_2XEpklfGt2HlL0IeLSFgYcb91JvyNrUc6_EfImk";
 
 
 
@@ -136,60 +147,65 @@ void ringIfDetermined() {
   }
 
   switch (opMode)
-{
-  case 0:
-  Serial.print("OFF MODE");
-  digitalWrite(RELAY_PIN, LOW);
-  Serial.println("pin LOW");
-  break;
-case 1:
-Serial.print("MORNING MODE");
-    if ((numericalMinOfDay >= amStartMin) && (numericalMinOfDay < amStopMin))
-    {
-      digitalWrite(RELAY_PIN, HIGH);
-      Serial.println("pin high");
-    }
-    else {
+  {
+    case 0:
+      Serial.print("OFF MODE");
       digitalWrite(RELAY_PIN, LOW);
       Serial.println("pin LOW");
-    }
-    break;
-case 2:
-Serial.print("EVENING MODE");
-  if ((numericalMinOfDay >= pmStartMin) && (numericalMinOfDay < pmStopMin))
-  {
-    digitalWrite(RELAY_PIN, HIGH);
-    Serial.println("pin high");
+      break;
+    case 1:
+      Serial.print("MORNING MODE");
+      if ((numericalMinOfDay >= amStartMin) && (numericalMinOfDay < amStopMin))
+      {
+        digitalWrite(RELAY_PIN, HIGH);
+        Serial.println("pin high");
+      }
+      else {
+        digitalWrite(RELAY_PIN, LOW);
+        Serial.println("pin LOW");
+      }
+      break;
+    case 2:
+      Serial.print("EVENING MODE");
+      if ((numericalMinOfDay >= pmStartMin) && (numericalMinOfDay < pmStopMin))
+      {
+        digitalWrite(RELAY_PIN, HIGH);
+        Serial.println("pin high");
+      }
+      else
+      {
+        digitalWrite(RELAY_PIN, LOW);
+        Serial.println("pin LOW");
+      }
+      break;
+    case 3:
+      Serial.print("BOTH MODE");
+
+      if (numericalMinOfDay < 720) {
+        if ((numericalMinOfDay >= amStartMin) && (numericalMinOfDay < amStopMin))
+        {
+          digitalWrite(RELAY_PIN, HIGH);
+          Serial.println("pin high");
+        }
+        else
+        {
+          digitalWrite(RELAY_PIN, LOW);
+          Serial.println("pin LOW");
+        }
+      }
+      else {
+        if ((numericalMinOfDay >= pmStartMin) && (numericalMinOfDay < pmStopMin))
+        {
+          digitalWrite(RELAY_PIN, HIGH);
+          Serial.println("pin high");
+        }
+        else
+        {
+          digitalWrite(RELAY_PIN, LOW);
+          Serial.println("pin LOW");
+        }
+      }
   }
-  else
-  {
-    digitalWrite(RELAY_PIN, LOW);
-    Serial.println("pin LOW");
-  }
-  break;
-case 3:
-Serial.print("BOTH MODE");
-  if ((numericalMinOfDay >= amStartMin) && (numericalMinOfDay < amStopMin))
-  {
-    digitalWrite(RELAY_PIN, HIGH);
-    Serial.println("pin high");
-  }
-  else
-  {
-    digitalWrite(RELAY_PIN, LOW);
-    Serial.println("pin LOW");
-  }
-  if ((numericalMinOfDay >= pmStartMin) && (numericalMinOfDay < pmStopMin))
-  {
-    digitalWrite(RELAY_PIN, HIGH);
-    Serial.println("pin high");
-  }
-  else
-  {
-    digitalWrite(RELAY_PIN, LOW);
-    Serial.println("pin LOW");
-  }
-}
 }
 
 
